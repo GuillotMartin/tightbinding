@@ -7,7 +7,7 @@ from typing import Union
 from copy import deepcopy
 from xarray_einstats.linalg import eigh
 from types import NoneType
-from .geometry import Lattice, stringtoarray, arraytostring
+from tightbinding.geometry import Lattice, stringtoarray, arraytostring
 import dask
 
 def check_valid_coord(coord)->bool:
@@ -325,6 +325,7 @@ class Hamiltonianbuilder:
         self.onsite_energies: dict[str] = {}
         self.parameters.update({"i": np.arange(self.matdim),
                                 "j": np.arange(self.matdim)})
+        self.context = {}
         self.create_array()
         
     def set_type(self, newtype):
@@ -356,7 +357,7 @@ class Hamiltonianbuilder:
         
         self.Hamiltonian.name = "Hamiltonian"
 
-        self.context = {name: self.Hamiltonian.coords[name] for name, coord in self.parameters.items() if check_valid_coord(coord)}
+        self.context.update({name: self.Hamiltonian.coords[name] for name, coord in self.parameters.items() if check_valid_coord(coord)})
         self.context.update({name: value for name, value in self.parameters.items() if not check_valid_coord(value)})
         self.context["np"] = np
     
@@ -378,7 +379,7 @@ class Hamiltonianbuilder:
         """
         self.Hamiltonian = self.Hamiltonian.assign_coords({name:(dims, coord)})
                 
-        self.context.update({name: self.Hamiltonian.coords[name]})
+        self.context[name] = self.Hamiltonian.coords[name]
         
     
     def add_parameters(self, newparams:dict[np.ndarray]):
@@ -575,7 +576,7 @@ class Hamiltonianbuilder:
     
 #%%
 if __name__ == '__main__':
-    
+    from tightbinding.geometry import Orbital, Site, Unitcell
     ## Define the lattice
     orb_s = Orbital("s")
     

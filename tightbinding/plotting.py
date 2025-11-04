@@ -134,7 +134,7 @@ def plot_bands_3D(bands:xr.DataArray, dims = ["kx", "ky"], escale = 0.5):
         cl=plt.colors.qualitative.Plotly[int(b)%10]
         surf = go.Surface(
             x = bands.coords[dims[0]],
-            y = bands.coords[dims[0]],
+            y = bands.coords[dims[1]],
             z = values,
             contours = {"z": {"show": True, "start": np.min(values), "end": np.max(values), "size": 0.05}},
             opacity = 0.9,
@@ -152,7 +152,7 @@ def plot_bands_3D(bands:xr.DataArray, dims = ["kx", "ky"], escale = 0.5):
             aspectratio = dict(x = 1, y = 1, z = escale),
             zaxis = {"title": {"text":"Energy"}},
             xaxis = {"title": {"text":f"{dims[0]}"}},
-            yaxis = {"title": {"text":f"{dims[0]}"}},
+            yaxis = {"title": {"text":f"{dims[1]}"}},
             ),
         width = 800, height = 600,
     )
@@ -346,6 +346,7 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
                       titles: list[list[str]],
                       eigvas:list[list[Union[NoneType,xr.DataArray]]] = [[None]],
                       dims:list[str] = ["kx","ky"],
+                      excluded_dims:list[str] = []
                       ):
     """A general plotting function for exploring eigenvector maps. All data maps passed are rendered as a grid of plot, 
     and all dimensions not in 'dims' are used as sliders controling all plots at the same time.
@@ -373,34 +374,7 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
                        template:Union[str, dict],
                        )-> tuple[dict, list[float], dict, go.Heatmap]:
         
-        if template == "phase":
-            template = {
-                "colorbar":{
-                    "tickvals": [-np.pi,0,np.pi],
-                    "ticktext": ["-π","0","π"],
-                    },
-                "cmap": "twilight",
-                "zmin":-np.pi,
-                "zmax":np.pi,
-                    
-            }
-        elif template == "amplitude":
-            template = {
-                "colorbar":{
-                    "tickformat": ".2f",
-                    },
-                "cmap": "magma",
-            }
-        elif template == "symmetric":
-            template = {
-                "colorbar":{
-                    "tickformat": ".2f",
-                    },
-                "cmap": "PiYG",
-                "zmid":0,
-            }
-        
-        slider_dims = [dim for dim in tp.dims if dim not in dims]
+        slider_dims = [dim for dim in tp.dims if dim not in dims and dim not in excluded_dims]
         sliders = {}
         for dim in slider_dims:
             coord = tp.coords[dim].values
@@ -414,10 +388,63 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
                     description=dim
                 )
             else:
-                sliders[dim] = IntSlider(min=0, max=len(coord) - 1, step=1, value=len(coord) // 2, description=dim)
+                sliders[dim] = IntSlider(min=coord[0], max=coord[-1], step=1, value=len(coord) // 2, description=dim)
         
         initial_sel = {dim:slider.value for dim, slider in sliders.items()}
-        values = tp.sel(initial_sel, method = 'nearest')
+        values = tp.sel(initial_sel, method = 'nearest').T
+        
+        if template == "phase":
+            template = {
+                "colorbar":{
+                    "tickvals": [-np.pi,0,np.pi],
+                    "ticktext": ["-π","0","π"],
+                    },
+                "cmap": "twilight",
+                "zmin":-np.pi,
+                "zmax":np.pi,
+                    
+            }
+
+        elif template == "amplitude":
+            template = {
+                "colorbar":{
+                    "tickformat": ".0e",
+                    },
+                "cmap": "magma",
+            }
+
+        elif template == "amplitude - saturated":
+            template = {
+                "colorbar":{
+                    "tickformat": ".0e",
+                    },
+                "cmap": "magma",
+            }
+            med = float(np.mean(abs(values)))
+            values = xr.where(values > med, med, values)
+            template.update({"zmax": med})
+
+        elif template == "symmetric":
+            template = {
+                "colorbar":{
+                    "tickformat": ".0e",
+                    },
+                "cmap": "PiYG",
+                "zmid":0,
+            }
+        
+        elif template == "symmetric - saturated":
+            template = {
+                "colorbar":{
+                    "tickformat": ".0e",
+                    },
+                "cmap": "PiYG",
+                "zmid":0,
+            }
+            med = float(np.mean(abs(values)))
+            values = xr.where(values > med, med, values)
+            values = xr.where(values < -med, -med, values)
+            template.update({"zmin":-med, "zmax": med})
         
         x = tp.coords[dims[0]]
         y = tp.coords[dims[1]]
@@ -426,10 +453,9 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
         xmax = tp.coords[dims[0]].values.max()
         ymin = tp.coords[dims[1]].values.min()
         ymax = tp.coords[dims[1]].values.max()
-        
+                
         heatmap = go.Heatmap(
-            x = x, y = y,
-            z = values,
+            x = x, y = y, z = values,
             colorscale = template.get("cmap", 'magma'),
             zmin = template.get("zmin", None),
             zmax = template.get("zmax", None),
@@ -438,8 +464,8 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
         plot = [heatmap]
         
         if eigva is not None:
-            band_initial_sel = {dim:slider.value for dim, slider in sliders.items() if dim != 'component'}
-            band_value = eigva.sel(band_initial_sel, method='nearest')
+            band_initial_sel = {dim:slider.value for dim, slider in sliders.items() if dim != 'component' and dim in eigva.dims}
+            band_value = eigva.sel(band_initial_sel, method='nearest').T
             
             contour = go.Contour(
                 x=x, 
@@ -477,6 +503,7 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
             
         return sliders, [[xmin,xmax],[ymin,ymax]], template, plot
     
+    
     h_space, v_space = 0.1 + 0.1/n_cols, 0.1/n_rows  
     main_fig = make_subplots(
         rows = n_rows, cols = n_cols, 
@@ -489,7 +516,7 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
     x_p = np.linspace(w_pl/2, 1-w_pl/2, n_cols)
     y_p = np.linspace(1-h_pl/2, h_pl/2, n_rows)
     x_cb = [xt + w_pl/2 for xt in x_p]
-    y_t = [yt + h_pl/2.05 for yt in y_p]
+    y_t = [yt + h_pl/2.1 for yt in y_p]
     
     
     sliders = {}
@@ -507,8 +534,15 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
                     trace.colorbar = cbdict
             
             main_fig.add_traces(traces, rows=i+1,cols=j+1)
-            main_fig.update_xaxes(range=[axislims[0][0], axislims[0][1]], scaleanchor=f"y{i*n_cols + j + 1}", row=i+1, col=j+1)
-            main_fig.update_yaxes(range=[axislims[1][0], axislims[1][1]], scaleanchor=f"x{i*n_cols + j + 1}", scaleratio=1, row=i+1, col=j+1)
+            main_fig.update_xaxes(range=[axislims[0][0], axislims[0][1]], 
+                                  scaleanchor=f"y{i*n_cols + j + 1}", 
+                                  title = dict(text = dims[0], standoff = 5),
+                                  row=i+1, col=j+1)
+            main_fig.update_yaxes(range=[axislims[1][0], axislims[1][1]], 
+                                  scaleanchor=f"x{i*n_cols + j + 1}", 
+                                  scaleratio=1,
+                                  title = dict(text = dims[1], standoff = 5),
+                                  row=i+1, col=j+1)
             
             annotations.append(dict(
                 text=titles[i][j],
@@ -541,16 +575,17 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
     main_widget.layout.height = 350 * n_rows
     
     def update_single(tp, eigva, kwargs):
-        tp_dims = [dim for dim in tp.dims if dim not in dims]
+        tp_dims = [dim for dim in tp.dims if dim not in dims and dim not in excluded_dims]
         selection = {dim:kwargs[dim] for dim in tp_dims}
-        values = tp.sel(selection, method = 'nearest')
-        
+        values = tp.sel(selection, method = 'nearest').T
+                
         band_values = values
         if eigva is not None:
-            bands_dim = [dim for dim in eigva.dims if dim not in dims]
+            bands_dim = [dim for dim in eigva.dims if dim not in dims and dim not in excluded_dims]
             band_selection = {dim:kwargs[dim] for dim in bands_dim}
-            band_values = eigva.sel(band_selection, method = 'nearest')
-        return values, band_values
+            band_values = eigva.sel(band_selection, method = 'nearest').T
+
+        return values.data, band_values.data
     
     
     def update(**kwargs):
@@ -561,16 +596,26 @@ def plot_eigenvectors(plots:list[list[xr.DataArray]],
                 tp = plots[i][j]
                 eigva = eigvas[i][j]
                 values, band_values = update_single(tp, eigva, kwargs)
+                
+                if template == 'amplitude - saturated':
+                    med = float(np.mean(abs(values)))
+                    values = xr.where(values > med, med, values)
+                elif template == 'symmetric - saturated':
+                    med = float(np.mean(abs(values)))
+                    values = xr.where(values > med, med, values)
+                    values = xr.where(values < -med, -med, values)
+                    
                 values_list += [values]
                 bands_list += [band_values]
 
         with widg.batch_update():
             for i, (values, band_values) in enumerate(zip(values_list,bands_list)):
                 widg.data[2*i].z = values
-                widg.data[2*i+1].z = np.array(band_values)
+                widg.data[2*i+1].z = band_values
     
     interactive_output(update, sliders)
 
 
+    interactive_output(update, sliders)
     layout_box = VBox([main_widget, HBox([slider for slider in sliders.values()])])
     display(layout_box)
