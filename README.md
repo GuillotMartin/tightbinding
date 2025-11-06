@@ -18,7 +18,7 @@ if you want to be able to modify it in place.
 
 ## Getting started
 
-Once you have installed the package, open in a jupyter viewer the [Getting Started](docs\GettingStarted.ipynb) notebook.
+Once you have installed the package, open in a jupyter viewer the [Getting Started](docs/GettingStarted.ipynb) notebook.
 
 
 
