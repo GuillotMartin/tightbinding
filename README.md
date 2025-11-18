@@ -1,6 +1,6 @@
 # A tight-binding Hamiltonian constructor
 
-This package is design to help the creation of tight-binding Hamiltonians matrices depending on mulriple parameters. It also provides interactive plotting functions taht can be run in jupyter notebook to facilitate the study of band and eigenvectors structures.
+This package is designed to help the creation of tight-binding Hamiltonians matrices depending on mulriple parameters. It also provides interactive plotting functions taht can be run in jupyter notebook to facilitate the study of band and eigenvectors structures.
 
 ## Installation
 
