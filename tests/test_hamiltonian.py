@@ -374,6 +374,23 @@ def test_three_dimensional_lattice_builds():
     assert np.allclose(values, np.conj(np.swapaxes(values, -1, -2)))
 
 
+def test_hopping_into_a_cell_the_start_cell_does_not_share():
+    """A vacancy must not break hoppings that end on a site missing upstream.
+
+    The destination orbital has to be looked up in the end unit cell, not the
+    starting one.
+    """
+    lat = open_honeycomb((3, 3))
+    lat.remove_site((0, 0), "B")
+    H = Hamiltonianbuilder(lat, {"t": -1.0})
+    H.add_couplings([Hopping(lat, "t", "A_s", "B_s", (1, 0))])
+    H.build()
+
+    index_a = lat.orbitals_index["[0 0]_A_s"]
+    index_b = lat.orbitals_index["[1 0]_B_s"]
+    assert H.Hamiltonian.values[index_a, index_b] != 0
+
+
 def test_orbital_angle_dependence_modulates_the_hopping():
     """A p-like orbital (one node) must flip sign with the bond direction."""
     uc = honeycomb_unitcell()

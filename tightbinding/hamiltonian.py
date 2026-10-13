@@ -495,6 +495,8 @@ class Hamiltonianbuilder:
                 norb1 = orb1[len(nsite1) + 1:]
                 norb2 = orb2[len(nsite2) + 1:]
                 theta = np.angle(distance[0] + 1j * distance[1])
+                # The destination orbital lives in the end unit cell, which is
+                # not the starting one whenever the hopping crosses a cell.
                 dep1 = (
                     self.lattice.unitcells[start_uc]
                     .sites[nsite1]
@@ -502,7 +504,7 @@ class Hamiltonianbuilder:
                     .angledep
                 )
                 dep2 = (
-                    self.lattice.unitcells[start_uc]
+                    self.lattice.unitcells[end_uc]
                     .sites[nsite2]
                     .orbitals[norb2]
                     .angledep
